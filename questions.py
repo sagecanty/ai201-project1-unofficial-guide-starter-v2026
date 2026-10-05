@@ -21,13 +21,43 @@ Swap them for your own if you like. Keep five of them either way: criterion 3
 names a target of "4 of 5", and four of three is not a thing.
 """
 
+# `answer_in` is my answer key for criterion 5: the files that actually state
+# the fact, found by reading the corpus before any answers existed. An answer
+# citing a file outside this list fails criterion 5 even if the fact is right.
 QUESTIONS = [
-    # {"question": "...", "expects": "..."},
-    {"question": "", "expects": ""},
-    {"question": "", "expects": ""},
-    {"question": "", "expects": ""},
-    {"question": "", "expects": ""},
-    {"question": "", "expects": ""},
+    # Answer lives in guide_kestrelford.md AND guide_regional_transport.md.
+    {
+        "question": "How often do buses run from Brightwater to Kestrelford on weekdays?",
+        "expects": "hourly",
+        "answer_in": ["guide_kestrelford.md", "guide_regional_transport.md"],
+    },
+    # Answer is in guide_seasons.md and guide_halden_bay.md, worded differently
+    # in each — a question that has to bridge "August" and "summer weekends".
+    {
+        "question": "What time should I get to Halden Bay in August if I want a parking space?",
+        "expects": "10am",
+        "answer_in": ["guide_seasons.md", "guide_halden_bay.md", "guide_regional_transport.md"],
+    },
+    # Answer is in guide_elder_ness.md (the intro) and guide_walking.md.
+    {
+        "question": "How many times a year does the road to Elder Ness flood?",
+        "expects": "six times",
+        "answer_in": ["guide_elder_ness.md", "guide_walking.md"],
+    },
+    # Only guide_accessibility.md answers this, and nine town guides each have
+    # a "Getting around" section that shares most of the question's words.
+    {
+        "question": "Which town in the region is easiest to visit with limited mobility?",
+        "expects": "Thornby Wells",
+        "answer_in": ["guide_accessibility.md"],
+    },
+    # Only guide_accessibility.md is right. Nine town guides carry an identical
+    # pasted "Practical notes" paragraph that says Brightwater instead.
+    {
+        "question": "Where is the nearest full hospital in the region?",
+        "expects": "Marchwood",
+        "answer_in": ["guide_accessibility.md"],
+    },
 ]
 
 # Questions from a different world entirely. Your gate should refuse all five.
