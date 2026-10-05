@@ -128,30 +128,88 @@ The Kestrelford service is hourly on weekdays, two-hourly on Saturdays, and does
 
 ## Sample Answer
 
-<!-- One complete question and answer, pasted as text, with the source line
-     visible. Milestone 4. -->
-
-**Question:**
+**Question:** Where is the nearest full hospital in the region?
 
 **Answer:**
 
 ```
+$ python app.py ask "Where is the nearest full hospital in the region?"
+  (best distance 0.407, cutoff 0.61)
+
+The nearest full hospital is located in Marchwood.
+
+Source: guide_accessibility.md
+
+Sources retrieved: guide_accessibility.md, guide_givens_mill.md
 ```
 
-**My relevance cutoff:**
+I picked this one because it's the question the boilerplate cleaning exists
+for. Before `ingest.py` stripped the nine identical "Practical notes"
+paragraphs, nine chunks said "the nearest full hospital is in Brightwater"
+and one said Marchwood.
 
-<!-- The number you set in config.py, and how you got there.
+**My relevance cutoff:** 0.61 (`THRESHOLD` in `config.py`), top-k 5.
 
-     You ran five questions your corpus covers and the five in OUT_OF_SCOPE
-     that it clearly doesn't, and wrote down the best distance for each. What
-     did those two groups look like? Where was the gap? Put the actual numbers
-     here — the table below wants all ten rows.
-
-     Milestone 4. -->
+Best distance for each question, from `app.py retrieve` with my chunker:
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| How often do buses run from Brightwater to Kestrelford on weekdays? | Yes | 0.208 |
+| What time should I get to Halden Bay in August if I want a parking space? | Yes | 0.258 |
+| How many times a year does the road to Elder Ness flood? | Yes | 0.282 |
+| Which town in the region is easiest to visit with limited mobility? | Yes | 0.333 |
+| Where is the nearest full hospital in the region? | Yes | 0.407 |
+| What is the capital of Mongolia? | No | 0.810 |
+| What is the recommended dosage of ibuprofen for a headache? | No | 0.835 |
+| How do I write a for loop in Rust? | No | 0.861 |
+| How do I change the oil in a diesel engine? | No | 0.881 |
+| Who won the 1994 World Cup? | No | 0.969 |
+
+The two groups don't come close: in-corpus tops out at 0.407, out-of-corpus
+starts at 0.810. I put the cutoff at 0.61, the midpoint, which leaves about 0.2
+of headroom on each side — room for an in-corpus question phrased worse than
+mine, and for an off-topic one that happens to share a word with the guides.
+The two I worried about in criterion 3 (ibuprofen and the diesel engine) came
+in at 0.835 and 0.881, nowhere near.
+
+The gap is that wide because these out-of-scope questions are *very* out of
+scope. So I also tried five "near misses" — questions about these towns that
+the guides just don't answer:
+
+| Near-miss question | Best distance |
+|---|---|
+| How much does a taxi from Marchwood to Brightwater cost? | 0.353 |
+| Is there a cinema in Kestrelford? | 0.366 |
+| What is the population of Halden Bay? | 0.385 |
+| Are there any vegan restaurants in Thornby Wells? | 0.407 |
+| Can I bring my dog on the Pellew Sands land train? | 0.523 |
+
+Those sit *inside* the in-corpus range. No cutoff can stop them without also
+refusing the hospital question, so the gate isn't the right layer for them —
+the grounding prompt is. With the tightened prompt, "Is there a cinema in
+Kestrelford?" got: *"I do not have enough information to answer whether there
+is a cinema in Kestrelford, as the provided documents do not mention one."*
+
+**What I changed in the grounding prompt** (`GROUNDING_INSTRUCTION` in
+`generate.py`): three rules added on top of the starter's. Use only excerpts
+about the town the question asks about and never carry a fact across towns
+(nine guides have identically named sections, so this is the likeliest kind of
+drift). If excerpts disagree, say so and name both files. And end with a
+`Source: <filename>` line, which is what criteria 2 and 5 check.
+
+**One thing that went wrong, kept for unit 2.** "how do I get to Kestrelford?"
+answered fine with the starter's chunker (though it said the last stretch of
+road is "eight miles" — the guides say eight *minutes*). With my chunker it
+answered *"the documents do not provide specific instructions on how to travel
+there."* `app.py retrieve` shows why: the top five were Kestrelford's "Where to
+stay" (0.321), "Getting around", "Overview", an accessibility chunk, and "Eat
+and drink" — "Getting there" didn't make the top 5. The `Kestrelford — ...`
+prefix I added makes every Kestrelford chunk similar to any question with
+"Kestrelford" in it, and in a short question the town name outweighs the topic.
+The prompt did its job (it declined instead of inventing), but retrieval
+failed. My five test questions all contain distinctive words ("flood",
+"parking", "hospital") that dodge this, which is worth knowing before I trust
+my criterion 1 results.
 
 ## How I Used AI
 

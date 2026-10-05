@@ -279,7 +279,10 @@ Rules:
 - Use only the information in the documents below. Do not use anything you know from elsewhere.
 - If the documents don't cover the question, say you don't have enough information. Do not guess.
 - Name the document your answer came from, using the filename given in each excerpt.
-- Be brief. Two or three sentences is usually enough."""
+- Be brief. Two or three sentences is usually enough.
+- Each excerpt starts with "<guide> — <section>". Only use an excerpt about the town or topic the question asks about; never carry a fact from one town's guide over to another town.
+- If two excerpts disagree, say so and name both files rather than picking one.
+- Finish with one final line in exactly this form: Source: <filename>[, <filename>]"""
 
 
 def build_prompt(question: str, results) -> str:

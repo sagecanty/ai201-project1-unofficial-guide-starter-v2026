@@ -48,7 +48,13 @@ TOP_K = 5               # how many chunks to pull back per question
 # 0.6 is a reasonable starting point, not a right answer. Milestone 4 has you
 # measure your own two groups of distances and put the cutoff in the gap.
 # Most corpora land somewhere between 0.45 and 0.75.
-THRESHOLD = 0.6
+# Measured in Milestone 4 with my section chunker: my five test questions'
+# best distances were 0.208-0.407, the five OUT_OF_SCOPE ones 0.810-0.969.
+# 0.61 is the midpoint of that gap, about 0.2 of headroom on each side.
+# Near-miss questions ("Is there a cinema in Kestrelford?") land at 0.32-0.52,
+# inside the in-scope range, so the gate can't catch them at any cutoff that
+# keeps real questions; the grounding prompt in generate.py handles those.
+THRESHOLD = 0.61
 
 
 # ─── Models ──────────────────────────────────────────────────────────────────
