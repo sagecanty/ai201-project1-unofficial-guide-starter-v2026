@@ -2,30 +2,23 @@
 
 Sezgi — corpus: `city_guides`
 
-> **This file is your submission.** Fill it in as you go — most sections get
-> written during the milestone that produces them, not at the end.
->
-> How the starter works, and every command you'll need, is in `RUNNING.md`.
-> Leave that file alone.
->
-> **Paste everything as text.** No screenshots, no video. A typed table gets
-> full credit; a picture of the same table gets none.
->
-> Delete these instruction blocks as you replace them. The `<!-- -->` comments
-> are notes to you and don't show up when the page renders — you can leave them
-> or remove them.
-
 ---
 
 # Unit 1
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
-
-     Milestone 5. -->
+A question-answering system over `city_guides`: fourteen travel guides to a
+fictional region — nine town guides (Kestrelford, Halden Bay, Elder Ness,
+Marchwood and others) and five that cut across all of them (transport,
+walking, eating, seasons, accessibility). Ask it something like "How often do
+buses run from Brightwater to Kestrelford on weekdays?" or "Which town is
+easiest to visit with limited mobility?" and it answers from the guides only,
+ending with a `Source:` line naming the file. Questions from outside the region
+entirely ("Who won the 1994 World Cup?") are refused by a relevance gate
+before the model ever runs; questions about the region that the guides don't
+cover ("Is there a cinema in Kestrelford?") get an honest "the documents don't
+say". Run it with `python app.py ask "your question"`.
 
 ## Chunking Strategy
 
