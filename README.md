@@ -206,18 +206,37 @@ my criterion 1 results.
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+I used Claude (Opus 5.5, in the Claude app, connected to my Mac) for most of
+this unit: it read the brief and the corpus, wrote the code changes, ran the
+pipeline on my machine, and drafted the README and criteria 4 and 5. The brief
+says not to have AI write criteria, so to be clear: criteria 4 and 5 and all
+five "why this target" paragraphs were drafted by Claude, not me. Two moments
+worth recording:
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
+**1. The criteria described work that didn't exist yet.** Claude's first draft
+of criteria.md said the grounding prompt "now requires" a `Source:` line, and
+that the hospital boilerplate had been cleaned "before" — but at the Milestone
+2 commit, neither change had been made. Committed as written, the history
+would have claimed results before they existed, which is the one thing that
+history is there to prove. It caught this before committing and rewrote both
+as plans ("I'm tightening the grounding instruction", "I plan to strip it at
+ingestion"), then committed criteria and questions on their own, ahead of the
+chunker. The same fix went into a comment in questions.py.
 
-     Milestone 5. -->
+**2. The chunk prefix helped my test questions and broke a plain one.** Claude
+designed the chunker to prefix every chunk with `<town> — <section>`, because
+sections like "Getting there" often never say which town they're about. My five
+test questions all retrieved the right chunk. But when it re-ran the
+Milestone 1 question "how do I get to Kestrelford?", the answer said the
+documents don't explain how to get there. `app.py retrieve` showed "Kestrelford
+— Getting there" wasn't in the top 5: with "Kestrelford" in every chunk's
+prefix, the town name outweighed the topic. Rather than patch it to make the
+unit 1 numbers look better, we kept the chunker as it was and wrote the miss up
+under Sample Answer as the first thing to diagnose in unit 2.
 
-**1.**
-
-**2.**
+(Smaller one: the embedder crashed on my Intel Mac with an onnxruntime CoreML
+error. Claude pinned it to `CPUExecutionProvider` in `store.py` — same model,
+same vectors — and noted it in the Milestone 1 commit.)
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
