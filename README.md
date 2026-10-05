@@ -29,53 +29,101 @@ Sezgi — corpus: `city_guides`
 
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** one chunk per `##` section of a guide — 183 to 661 characters,
+306 on average, 90 chunks from 14 documents. A 900-character cap exists as a
+safety net (`SECTION_MAX_CHARS` in `chunker.py`) but nothing in this corpus
+reaches it. In the two cross-town guides (accessibility, walking), sections
+that list several towns as bold-led paragraphs split one town per chunk.
 
-<!-- What about YOUR documents made you pick these numbers? Short posts and
-     long sectioned guides don't want the same chunking, and "800 seemed
-     reasonable" earns nothing. Point at something you noticed when you read
-     the documents in Milestone 1.
+**Overlap:** 0. Instead, every chunk starts with `<guide title> — <section heading>`.
 
-     If you changed your mind partway through, say so and say why. That's worth
-     more than pretending you got it right first time.
+**What about the documents made me pick this.** Reading the guides in
+Milestone 1, every one is laid out the same way: `# Town`, a two-sentence
+intro, then `## Getting there`, `## Getting around`, `## Eat and drink`,
+`## What to see`, `## Where to stay`, `## When to go`. Each section answers
+exactly one kind of question, and each is short (175–710 characters). The
+heading is already the topic boundary, so that's where I cut.
 
-     Milestone 3. -->
+The starter's 800-character windows ignored that. On this corpus they made
+51 chunks averaging 650 characters, 9 of which contain both "Getting there"
+and "Getting around", and the shortest was 24 characters of the tail of a
+sentence: `'d Sundays and after 5pm.'` (guide_eating.md#3). A chunk spanning two or
+three sections matches every question about that town a little and none of
+them well.
+
+Why the title prefix instead of overlap: a section on its own often never
+names its town. `Buses run from Brightwater roughly hourly on weekdays` is in
+guide_kestrelford.md under "Getting there" and the word "Kestrelford" isn't in
+it. Overlap with the neighboring section wouldn't fix that — the neighbor is
+"Getting around", a different topic, and dragging it in would dilute the chunk.
+Prefixing `Kestrelford — Getting there` carries the context overlap is
+normally there for, without the noise.
+
+Why split the cross-town sections further: guide_accessibility.md's
+"Straightforward" section covers Thornby Wells, Marchwood and Brightwater in
+three paragraphs. As one chunk, a question about Marchwood's trams would
+retrieve a chunk two-thirds about other towns. Each paragraph opens with the
+town in bold, so that's a clean boundary.
+
+**Cleaning, which mattered as much as chunking.** All nine town guides end
+with an identical "Practical notes" paragraph — word for word the same — that
+says the nearest full hospital is in Brightwater. guide_accessibility.md says
+it's Marchwood. That paragraph is template boilerplate, and left in it would be
+nine chunks outvoting the one document that's right. `ingest.py` now drops any
+`##` section whose text appears identically in 3 or more documents (9 removed
+here; the eating guide's own different "Practical" section survives). It also
+un-wraps the hard line breaks some guides have at ~80 columns.
+
+**What I'd watch:** the intro chunk of guide_accessibility.md (Chunk 1 below)
+is the weakest chunk in the set. It's a sentence about the guide, not about the
+region, and can't answer any question on its own. It's harmless — nothing
+should rank it first — but it's the first thing I'd check if retrieval looks
+odd in unit 2.
 
 ## Sample Chunks
 
-<!-- Five chunks, pasted as text. Label each one and name the file it came from
-     AND the function that produced it — the grader checks your code against
-     what you claim here.
+All five printed by `python app.py chunks -n 5`.
 
-     `python app.py chunks -n 5` prints all three for you. Copy them straight
-     across.
-
-     Milestone 3. -->
-
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `guide_accessibility.md#0` — produced by: `chunker.py::split_documents`
 
 ```
+Getting around the region with limited mobility — Overview
+
+An honest assessment rather than a promotional one. Some of these places are difficult and it is better to know in advance.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: `guide_corry_vale.md#1` — produced by: `chunker.py::split_documents`
 
 ```
+Corry Vale — Getting there
+
+There is no public transport into the valley beyond a school bus that will carry passengers if there is room. Driving from Brightwater takes 35 minutes on a good road as far as the valley mouth and then 20 more on a poor one. Cycling in is a serious undertaking; the road climbs 400 metres in the first four miles.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: `guide_givens_mill.md#0` — produced by: `chunker.py::split_documents`
 
 ```
+Givens Mill — Overview
+
+Givens Mill is a village of 700 built around a working watermill that still grinds flour commercially. It is the sort of place people visit for an afternoon and then talk about for longer than the visit lasted.
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: `guide_kestrelford.md#4` — produced by: `chunker.py::split_documents`
 
 ```
+Kestrelford — What to see
+
+The market square on a Saturday morning is the main event and has run continuously since the 1400s. The parish church has a 13th-century tower you can climb for £2. The old trackbed walk runs six miles to the next village along an easy gradient and is the best half-day here.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: `guide_regional_transport.md#1` — produced by: `chunker.py::split_documents`
 
 ```
+Getting around the region — Buses
+
+Three operators run in the region and they do not accept each other's tickets, which is the single most common source of confusion for visitors. Services concentrate on weekday daytimes. Sunday service is minimal to non-existent outside the Brightwater town routes.
+
+The Kestrelford service is hourly on weekdays, two-hourly on Saturdays, and does not run on Sundays. The Halden Bay coast service runs four times daily year-round.
 ```
 
 ## Sample Answer

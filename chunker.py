@@ -80,24 +80,125 @@ def fallback_split(
     return chunks
 
 
+# ─── My strategy: one chunk per labeled section ──────────────────────────────
+#
+# city_guides is fourteen documents of ~2,000 characters each, every one laid
+# out as "# Town" → a short intro → "## Getting there", "## Eat and drink",
+# "## When to go" and so on. Each section answers one kind of question and
+# runs 175–710 characters. The heading IS the topic boundary, so that is where
+# the cut goes, not at character 800.
+#
+# Two things a bare section would lose, and how I keep them:
+#   1. Which town it is about. "Buses run from Brightwater roughly hourly" sits
+#      under "## Getting there" in guide_kestrelford.md and never says
+#      "Kestrelford". So every chunk is prefixed with "<guide title> — <section>".
+#   2. Nothing else. Overlap is 0: the neighboring section is a different
+#      topic ("Eat and drink" after "Getting around"), and dragging it in would
+#      make every chunk match two kinds of question a little and neither well.
+#      The heading prefix does the job overlap normally does — carrying context.
+#
+# The cross-town guides (accessibility, walking) put several towns in one
+# section, one bold-led paragraph per town ("**Marchwood** has a modern tram
+# network..."). Those split one paragraph per chunk, still prefixed, so a
+# question about Marchwood doesn't drag Thornby Wells and Brightwater along.
+#
+# SECTION_MAX_CHARS is a safety net, not the strategy: nothing in this corpus
+# reaches it, but a section that did would split at paragraph boundaries.
+
+SECTION_MAX_CHARS = 900
+MIN_PARAGRAPH_CHARS = 60   # don't split off a lone one-line paragraph
+
+
+def _title_of(text: str, fallback: str) -> str:
+    for line in text.splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return fallback
+
+
+def _split_sections(text: str) -> list[tuple[str, str]]:
+    """[(heading, body)] in document order. The intro gets heading 'Overview'."""
+    import re
+
+    out: list[tuple[str, str]] = []
+    heading = "Overview"
+    body: list[str] = []
+    for block in text.split("\n\n"):
+        block = block.strip()
+        if not block:
+            continue
+        if block.startswith("# "):            # document title — not content
+            rest = block.split("\n", 1)
+            if len(rest) > 1:
+                body.append(rest[1].strip())
+            continue
+        m = re.match(r"^##+\s+(.*?)(?:\n+(.*))?$", block, re.S)
+        if m:
+            if body:
+                out.append((heading, "\n\n".join(body)))
+            heading, body = m.group(1).strip(), []
+            if m.group(2):
+                body.append(m.group(2).strip())
+        else:
+            body.append(block)
+    if body:
+        out.append((heading, "\n\n".join(body)))
+    return out
+
+
+def _pieces(body: str) -> list[str]:
+    """One section body → one or more chunk bodies."""
+    paras = [p.strip() for p in body.split("\n\n") if p.strip()]
+
+    # Cross-town sections: one paragraph per town.
+    if sum(p.startswith("**") for p in paras) >= 2:
+        merged: list[str] = []
+        for p in paras:
+            if merged and (not p.startswith("**") or len(p) < MIN_PARAGRAPH_CHARS):
+                merged[-1] += "\n\n" + p
+            else:
+                merged.append(p)
+        return merged
+
+    if len(body) <= SECTION_MAX_CHARS:
+        return [body]
+
+    # Safety net: pack whole paragraphs up to the cap. Never cuts a sentence.
+    out, cur = [], ""
+    for p in paras:
+        if cur and len(cur) + 2 + len(p) > SECTION_MAX_CHARS:
+            out.append(cur)
+            cur = p
+        else:
+            cur = f"{cur}\n\n{p}" if cur else p
+    if cur:
+        out.append(cur)
+    return out
+
+
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
-    Split documents into chunks. ⚠️ REPLACE THE BODY OF THIS IN MILESTONE 3.
-
-    Right now it just calls the fallback. That is the plain, generic behaviour
-    the brief is talking about.
-
-    When you write your own strategy, set `produced_by` to
-    "chunker.py::split_documents" so your README's Sample Chunks section names
-    the right function. `app.py chunks` prints that string for you.
-
-    Things worth thinking about before you write any code:
-      - Are your documents short posts or long guides?
-      - Is the useful information in one sentence, or spread over a paragraph?
-      - Would splitting on paragraph breaks keep more thoughts intact than
-        splitting on a character count?
+    Section-aware chunking for structured guides. One chunk per `##` section
+    (plus one for the intro), each prefixed with "<guide title> — <section>"
+    so it still makes sense pulled out on its own. Overlap 0. See the notes
+    above for why.
     """
-    return fallback_split(documents)
+    chunks: list[Chunk] = []
+    for doc in documents:
+        title = _title_of(doc.text, doc.source)
+        index = 0
+        for heading, body in _split_sections(doc.text):
+            for piece in _pieces(body):
+                chunks.append(
+                    Chunk(
+                        text=f"{title} — {heading}\n\n{piece}",
+                        source=doc.source,
+                        index=index,
+                        produced_by="chunker.py::split_documents",
+                    )
+                )
+                index += 1
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:

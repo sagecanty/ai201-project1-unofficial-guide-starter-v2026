@@ -27,8 +27,13 @@ CORPUS = os.getenv("AI201_CORPUS", "city_guides")
 # These are deliberately plain, generic numbers. Milestone 3 is where you
 # replace them with numbers that fit the documents you actually read.
 
-CHUNK_SIZE = 800        # characters per chunk
-CHUNK_OVERLAP = 120     # characters shared between neighbouring chunks
+# These two only drive chunker.py::fallback_split, the starter's original,
+# kept for comparison. My chunker (chunker.py::split_documents) cuts on the
+# guides' "## " section headings instead, with 0 overlap and a 900-character
+# safety cap (SECTION_MAX_CHARS in chunker.py). The reasons are in chunker.py
+# and in the README's Chunking Strategy section.
+CHUNK_SIZE = 800        # characters per chunk (fallback only)
+CHUNK_OVERLAP = 120     # characters shared between neighbouring chunks (fallback only)
 
 
 # ─── Retrieval (Milestone 4) ─────────────────────────────────────────────────
