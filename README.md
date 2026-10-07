@@ -253,27 +253,99 @@ same vectors — and noted it in the Milestone 1 commit.)
 
 ## Run Log — Before
 
-<!-- Your five criteria, three runs each. `python run_eval.py --label before`
-     runs the questions, puts the OUT_OF_SCOPE ones through the gate, and
-     writes it all into results/ for you. Targets come from criteria.md; the
-     verdict column is your call.
-
-     Criterion 3 is measured in one deterministic pass rather than three, so
-     the same number goes in all three run columns. That's correct, not lazy.
-
-     Milestone 1. -->
+Run with `python run_eval.py --label before` (three runs per question, response
+cache off), then rolled up into one row per criterion with
+`python criteria_check.py results/run_2026-10-06_1704_before.md`. Both the
+per-question log and the scorer were committed before this run
+(`scorer.py::judge`, `criteria_check.py::main`) so the counting rules were
+fixed before any answer existed. Evidence: `results/run_2026-10-06_1704_before.md`.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Rank-1 chunk contains the answer | 3 of 5 | 4/5 | 4/5 | 4/5 | MET |
+| 5. Cited file is in the answer key | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
-<!-- Underneath, paste the REAL output for each criterion from one of your
-     runs — the actual text your system produced, not a description of it.
-     Name the file and function that produced it. -->
+Criteria 1, 3 and 4 depend only on retrieval and the gate, which are
+deterministic, so one measurement goes in all three columns. Criteria 2 and 5
+depend on the generated answer and were counted separately per run. The answers
+did change between runs (question 1 cited one file in runs 1 and 3 and two in
+run 2; question 2 cited three files in run 1 and one in runs 2 and 3), which is
+how I know the cache really was off.
+
+How each was counted (fixed in `criteria_check.py` before the run):
+criterion 1 = any of the top 5 chunks contains the question's `expects` phrase;
+criterion 4 = the rank-1 chunk does; criterion 2 = the answer contains a `.md`
+filename; criterion 5 = every filename on the answer's last `Source:` line is
+in that question's `answer_in` list, and a missing `Source:` line fails.
+
+### Real output, criterion by criterion
+
+**Criterion 1 and 4** — produced by `criteria_check.py::main`, which calls
+`store.py::search` with top-k 5:
+
+```
+Retrieval detail (criteria 1 and 4):
+  expects at ranks [1, 2]; rank 1 = guide_kestrelford.md#1  | How often do buses run from Brightwater to Kestrelford on weekdays?
+  expects at ranks [2, 3, 4]; rank 1 = guide_halden_bay.md#6  | What time should I get to Halden Bay in August if I want a parking space?
+  expects at ranks [1, 5]; rank 1 = guide_elder_ness.md#1  | How many times a year does the road to Elder Ness flood?
+  expects at ranks [1]; rank 1 = guide_accessibility.md#1  | Which town in the region is easiest to visit with limited mobility?
+  expects at ranks [1]; rank 1 = guide_accessibility.md#9  | Where is the nearest full hospital in the region?
+```
+
+The one rank-1 miss, from `python app.py retrieve` (`app.py::cmd_retrieve`):
+
+```
+Question: What time should I get to Halden Bay in August if I want a parking space?
+
+#   distance   source                           preview
+1   0.2584     guide_halden_bay.md              Halden Bay — When to go  June and September are the ...
+2   0.2822     guide_halden_bay.md              Halden Bay — Getting there  The coast road is the on...
+3   0.2876     guide_seasons.md                 When to visit the region — Summer, June to August  J...
+4   0.3740     guide_regional_transport.md      Getting around the region — Driving  Roads are good ...
+5   0.3962     guide_halden_bay.md              Halden Bay — Where to stay  Almost entirely holiday ...
+
+Gate: best distance 0.258 is under the 0.61 cutoff
+```
+
+**Criterion 2 and 5** — run 2, produced by `run_eval.py::run_once` →
+`generate.py::answer_from_chunks`:
+
+```
+Q: How often do buses run from Brightwater to Kestrelford on weekdays?
+Buses run from Brightwater to Kestrelford roughly hourly on weekdays (guide_kestrelford.md). Similarly, the regional transport guide notes that the Kestrelford service is hourly on weekdays (guide_regional_transport.md).
+Source: guide_kestrelford.md, guide_regional_transport.md
+
+Q: What time should I get to Halden Bay in August if I want a parking space?
+To get a parking space in Halden Bay in August, you should arrive before 10am, or you will need to plan to use the overflow lot.
+Source: guide_seasons.md
+
+Q: How many times a year does the road to Elder Ness flood?
+The single road to Elder Ness floods roughly six times a year at the highest spring tides, for about two hours either side of high water.
+Source: guide_elder_ness.md, guide_walking.md
+
+Q: Which town in the region is easiest to visit with limited mobility?
+Thornby Wells is the easiest town in the region for visitors with limited mobility because it is flat, compact, and everything is within three minutes of everything else.
+Source: guide_accessibility.md
+
+Q: Where is the nearest full hospital in the region?
+The nearest full hospital is located in Marchwood.
+Source: guide_accessibility.md
+```
+
+**Criterion 3** — produced by `run_eval.py::check_out_of_scope`, cutoff 0.61:
+
+```
+| Out-of-scope question | Best distance | Gate |
+|---|---|---|
+| What is the capital of Mongolia? | 0.810 | refused |
+| How do I change the oil in a diesel engine? | 0.881 | refused |
+| Who won the 1994 World Cup? | 0.969 | refused |
+| What is the recommended dosage of ibuprofen for a headache? | 0.835 | refused |
+| How do I write a for loop in Rust? | 0.861 | refused |
+```
 
 ## Verdicts
 
