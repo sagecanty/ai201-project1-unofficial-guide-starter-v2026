@@ -238,6 +238,29 @@ under Sample Answer as the first thing to diagnose in unit 2.
 error. Claude pinned it to `CPUExecutionProvider` in `store.py` — same model,
 same vectors — and noted it in the Milestone 1 commit.)
 
+**Unit 2.** Claude (Opus 5.5, same setup) ran the evals, wrote the scorer and
+the probes, and drafted the unit 2 sections. Two
+moments:
+
+**3. The unit 1 diagnosis was wrong, and a broader test showed it.** In unit 1
+Claude explained the Kestrelford failure as "the town prefix drowns out the
+topic". Instead of building a fix for that, it ran the same short question for
+every town and section (54 probes, no model calls). If the prefix were the
+cause, every section type would fail; instead "Where to stay" and "When to go"
+were 9/9 at rank 1 and only "Getting there" failed. Counting town names per
+chunk then showed why. The unit 1 explanation stays in the README as written,
+with the correction in Diagnoses.
+
+**4. The default fix measured worse than doing nothing.** Hybrid BM25 was the
+fix Claude would have reached for first — the brief recommends it, and my
+questions name towns. Testing three candidates on retrieval before shipping
+any showed hybrid dropped the target failure from 3/9 to 0/9. A smaller
+catch in the same vein: Claude's first draft of the improvement write-up said
+one "Getting around" probe was lost "presumably" to the new heading; it checked
+before committing, found that was right (Brightwater, 0.309 vs 0.330), and
+replaced "presumably" with the numbers. And the Verdicts commit called
+"weekdays" a rare word; it's in 8 of 14 guides, so the next commit corrected it.
+
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
      claims earns nothing.
@@ -574,17 +597,63 @@ more words with "get around" than "Getting there" did.
 
 ## What's Still Broken
 
-<!-- For each criterion still missed after your fix: what you'd do about it,
-     and why you stopped where you did.
+No criterion is missed, before or after, so by the letter of the brief there's
+nothing on this list. That's the problem. Here is what's actually broken:
 
-     "I ran out of time" is fine if it's true. Pretending nothing is left is
-     not.
+**1. "How do I get to Kestrelford?" still fails.** Its getting-there chunk is
+at rank 7 (0.406) and the model, correctly, says the documents don't explain
+how to get there. Marchwood's is at rank 6. Both bodies are about something
+other than arriving — Kestrelford's opens with a railway closed in 1963,
+Marchwood's with being the hub every line meets at — and one changed heading
+word can't outweigh 300 characters of that. What I'd do next, in order:
+- Set top-k to 8 on top of the heading fix. On the probes that puts the right
+  chunk in context for all 54 (every one lands in the top 8). It's cheap, and I
+  measured it already, but it's a second change and the rule is one per unit.
+- If that's too much prompt noise, embed each chunk's `<title> — <heading>`
+  as its own second vector, so a question that's really "which section of X?"
+  matches on the heading alone instead of the heading being diluted by the body.
 
-     Milestone 5. -->
+**2. One "Getting around" question got worse.** "How do I get around
+Brightwater?" now ranks the new "Getting to Brightwater" chunk first. The
+answer is still in context (rank 2), so it would still be answered, but it's
+a real side effect. A heading that says "Arriving in Brightwater" instead of
+"Getting to Brightwater" might avoid the shared word; I'd test that against
+the same probes before changing anything.
+
+**3. My test can't see any of this.** The five-question test passed
+identically before and after a change that moved the target failure from 3/9
+to 7/9. That's the biggest thing broken here, and it's in the criteria, not
+the pipeline (see below).
+
+**4. Numbers don't steer retrieval.** Question 2's rank-1 chunk is about
+August parking without the "10am" the question needs. It doesn't hurt today
+because the 10am chunks are at ranks 2–4, but any question whose answer is a
+number or time is relying on the right chunk being *topically* closest too.
+
+Why I stopped here: the brief allows one change, and I'd rather have one
+change measured properly — including where it didn't work — than two whose
+effects I can't separate.
 
 ## What I'd Do Differently
 
-<!-- Knowing what you know now — which of your five criteria would you write
-     differently, and why?
+**The questions, before any criterion.** All five of my test questions carry a
+rare keyword, so retrieval had its easiest possible job. I'd swap at least two
+for short questions whose only distinctive word is a town ("How do I get to
+Kestrelford?", "What is there to see in Givens Mill?"). Those are the questions
+a visitor actually asks, and they're where this system fails.
 
-     Milestone 5. -->
+**Criterion 2** I'd replace. Once the prompt demands a `Source:` line, "names a
+source" only tests whether the model follows a format rule. I'd measure
+faithfulness instead: *in at least 4 of 5 answers, every number or time in the
+answer appears in a cited file.* The unit 1 starter run said the road into
+Kestrelford's last stretch was "eight miles" when the guide says eight
+minutes, and nothing I measured would have caught that.
+
+**Criterion 4** I'd tighten from 3 of 5 to 4 of 5. It came out exactly 4/5 on
+all six runs, so 3 was a number I could never miss.
+
+**Criteria 1 and 4's "contains the answer"** I'd pin to chunk IDs instead of
+the `expects` phrase. It worked here only because each `expects` phrase is
+rare; with an answer like "Marchwood" or "hourly", any chunk that mentions the
+word would count. An `answer_chunks` list per question, like the `answer_in`
+list I already keep for criterion 5, would make it exact.
