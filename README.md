@@ -366,31 +366,113 @@ is broken, not when the result is inconvenient — in either direction.
 cleared with room to spare, on all three runs, which the brief warns usually
 means the criteria were safe rather than the system excellent. Arguing the
 opposite verdict as hard as I can: criteria 1 and 4 only look good because my
-five questions each contain a word that only a few chunks share
-("flood", "parking", "hospital", "mobility", "weekdays"). I chose those questions
+five questions each contain a word only a few chunks share ("flood",
+"parking", "hospital", "mobility"), or in question 1's case two town names at
+once. I chose those questions
 and that's the problem — they test retrieval on its easiest kind of question.
 I already had evidence of that in unit 1: "how do I get to Kestrelford?" failed
 retrieval, and it isn't in my test set. The diagnosis below goes after it.
 
 ## Diagnoses
 
-<!-- For each miss: which stage caused it, and how. The stage alone isn't
-     enough — you need the mechanism.
+**No criterion was missed, so there is no miss to diagnose in the strict
+sense.** Per the brief, here is what I'd tighten. Then a diagnosis of the one
+near-miss inside the test, and of the failure I already knew about outside it,
+since that's where my improvement points.
 
-     Not a diagnosis: "Question 3 didn't work."
-     A diagnosis:     "Question 3 asks about laundry costs. The answer is in
-                       one sentence that got split across two chunks, so
-                       neither chunk on its own contains it."
+**What I'd tighten, and to what.** Criterion 4 to 4 of 5 — it hit exactly 4/5
+on every run, so 3 was a target I couldn't miss. Criterion 2 I'd replace
+outright: once the prompt demands a `Source:` line, "names a source" tests
+format-following, and criterion 5 already tests the part that matters. But the
+bigger problem is the question set, not the numbers (see Verdicts): criteria 1
+and 4 should be measured on questions that don't hand retrieval a rare keyword.
 
-     The five stages: loading → chunking → embedding → retrieval → generation.
+### Near-miss: criterion 4, question 2 (rank 1 doesn't contain "10am")
 
-     Look for a pattern. If three misses all ask about numbers, that's one
-     problem, not three.
+- **Stage:** retrieval, working from the embeddings as designed.
+- **Mechanism:** the question's distinctive words are "Halden Bay", "August"
+  and "parking". "Halden Bay — When to go" contains all three ("July and
+  August are busy enough that the parking problem becomes the defining feature
+  of the visit") and wins at 0.258. The chunks with the actual answer, "fill by
+  10am" / "arrive before 10am", rank 2–4 at 0.282–0.374. An embedding captures
+  what a chunk is *about*, and a time like "10am" carries almost no weight in
+  that. It cost nothing here: all three chunks with 10am were in the top 5, and
+  generation found it in 3 of 3 runs.
 
-     Missed nothing? Say so, then say honestly whether your targets were set
-     low, and which one you'd tighten and to what.
+### The failure outside my test: "how do I get to Kestrelford?"
 
-     Milestone 3. -->
+In unit 1 this answered *"the documents do not provide specific instructions
+on how to travel there"*. I blamed the `Kestrelford — ...` prefix on every
+chunk, guessing the town name drowned out the topic.
+
+**Is it one question or a pattern?** I asked the same short question for all
+9 town guides × all 6 standard sections, 54 questions, retrieval only
+(`tools/probe_sections.py`, written for this diagnosis after the before-run and
+not part of the criteria test). Where the one chunk that answers each
+question landed:
+
+| Section asked about | Right chunk at rank 1 | Right chunk in top 5 |
+|---|---|---|
+| Getting there ("How do I get to X?") | 2/9 | **3/9** |
+| Getting around | 4/9 | 9/9 |
+| Eat and drink | 8/9 | 9/9 |
+| What to see | 0/9 | 8/9 |
+| Where to stay | 9/9 | 9/9 |
+| When to go | 9/9 | 9/9 |
+| **All 54** | 32/54 | 47/54 |
+
+That rules out my unit 1 explanation. If the town prefix drowned out every
+topic, "Where to stay" and "When to go" would fail too, and they're 9/9. It's
+one section type: "Getting there" misses the top 5 in 6 of 9 towns, usually at
+rank 7–9, losing to every other chunk from the same town.
+
+**Three possible causes, one per stage**, and what the evidence says:
+
+1. *Retrieval — top-k is too small.* The right chunk is at rank 7–9, so a
+   top-k of 8 would catch most of them. True, but it's a symptom: it doesn't
+   say why this one section sinks to the bottom of its own town.
+2. *Embedding — MiniLM can't connect "get to" with "Getting there".* If that
+   were the cause, "How do I get around X?" would fail the same way; it's in
+   the top 5 for 9/9.
+3. *Chunking — the chunk is mostly about other places.* This is the one. A
+   "Getting there" section describes the route *from* somewhere else, so its
+   body is full of other towns, and its heading "there" is a dangling
+   reference to a town the body never names. Counted across the 9 town guides:
+
+   | Section | Other towns named per chunk | Own town named in body |
+   |---|---|---|
+   | Getting there | **1.1** | 0.0 |
+   | Overview | 0.2 | 1.0 |
+   | every other section | 0.0–0.1 | 0.0–0.1 |
+
+   In "How do I get to X?" the only content word is X. Every X chunk shares
+   "X — " in its prefix, so they tie on that, and the one whose body pulls
+   hardest toward *other* towns comes last. Thornby Wells' "Getting there"
+   ("On the Marchwood line, 25 minutes from the hub") ranked 9th for "How do I
+   get to **Marchwood**?" — closer to the town it mentions than the one it's
+   about.
+
+**Stage: chunking. Mechanism: the section that answers "how do I get to X"
+is the one section whose body is about places other than X, and the only
+thing tying it to X is a heading that says "there".** One problem, not six
+questions.
+
+Before picking a fix I costed out three candidates on retrieval alone, no
+model calls, with the shipped system untouched (`tools/compare_candidates.py`).
+"Held-out" means 18 more getting-there questions in wording I didn't use while
+diagnosing ("What's the best way to reach X?", "Is there a train or bus to X?").
+
+| Candidate | 54 probes: rank 1 / in context | "How do I get to X?": in context | Held-out: rank 1 / in context |
+|---|---|---|---|
+| baseline (dense, top-5) | 32 / 47 | 3/9 | 5 / 13 of 18 |
+| (a) hybrid BM25 + dense, top-5 | 34 / 45 | **0/9** | 4 / 8 of 18 |
+| (b) dense, top-8 | 32 / 53 | 8/9 | 5 / 18 of 18 |
+| (c) resolve the heading, top-5 | 31 / 51 | 7/9 | **9** / 16 of 18 |
+
+Hybrid search made the target failure *worse*: BM25 sees "get", not "getting",
+and the town name scores the same on every chunk from that town, so keyword
+matching has nothing to separate them with. That was the option I'd have
+picked by default ("names and exact terms"), and it was wrong for this corpus.
 
 ## The Improvement
 
