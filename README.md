@@ -349,22 +349,28 @@ Source: guide_accessibility.md
 
 ## Verdicts
 
-<!-- MET or MISSED for each of the five, against the target you wrote last
-     unit — not a new one. Plus a sentence on how you decided. That sentence
-     matters most where it was close.
-
-     If your target said 4 of 5 and your runs came out 4, 3, 4, that's a MISS.
-     The target has to hold, not show up occasionally.
-
-     Milestone 2. -->
+Against the targets in criteria.md as written in unit 1. No criterion was
+revised: each one could be measured the same way every time with the rules in
+`criteria_check.py`, and the brief only allows a revision when the measurement
+is broken, not when the result is inconvenient — in either direction.
 
 | # | Criterion | Verdict | How I decided |
 |---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| 1 | Retrieved chunk contains the answer (4 of 5) | MET | 5/5 in every run. Every question had its `expects` phrase in the top 5; I also read each of those chunks to make sure the phrase was the actual answer and not a passing mention (for question 4 the only top-5 chunk naming Thornby Wells is the one that calls it the easiest town). |
+| 2 | Every answer names a source (5 of 5) | MET | 15 of 15 answers ended with a `Source:` line naming a real file. Not close — but also not much of a test, because the prompt now demands that line. It measures whether the model follows a format rule, which it did every time. |
+| 3 | Gate stops out-of-corpus questions (4 of 5) | MET | Refused 5 of 5; the closest one (Mongolia) was 0.810 against a 0.61 cutoff. The two I worried about in unit 1, ibuprofen and the diesel engine, came in at 0.835 and 0.881. |
+| 4 | Rank-1 chunk contains the answer (3 of 5) | MET | 4/5, every run. The miss is question 2: rank 1 is "Halden Bay — When to go", which talks about August and "the parking problem" but never says 10am; the 10am chunks are at ranks 2–4. It's on topic, just not the chunk with the number. I predicted in unit 1 that question 2 or 4 would be the one to miss; it was question 2. |
+| 5 | Cited file is in the answer key (4 of 5) | MET | 15 of 15. The cited files varied between runs (question 2 cited three files in run 1 and one in runs 2 and 3) but every file cited was one that actually states the fact. No answer cited a town guide the fact isn't in. |
+
+**The honest read: these targets were set too safely.** Every criterion
+cleared with room to spare, on all three runs, which the brief warns usually
+means the criteria were safe rather than the system excellent. Arguing the
+opposite verdict as hard as I can: criteria 1 and 4 only look good because my
+five questions each contain a word that only a few chunks share
+("flood", "parking", "hospital", "mobility", "weekdays"). I chose those questions
+and that's the problem — they test retrieval on its easiest kind of question.
+I already had evidence of that in unit 1: "how do I get to Kestrelford?" failed
+retrieval, and it isn't in my test set. The diagnosis below goes after it.
 
 ## Diagnoses
 
