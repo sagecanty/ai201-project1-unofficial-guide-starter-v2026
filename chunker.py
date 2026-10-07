@@ -104,9 +104,24 @@ def fallback_split(
 #
 # SECTION_MAX_CHARS is a safety net, not the strategy: nothing in this corpus
 # reaches it, but a section that did would split at paragraph boundaries.
+#
+# Unit 2 improvement — resolve "there" in headings. "Getting there" is a
+# dangling reference: the body describes the route FROM other towns ("four
+# buses a day from Brightwater") and never names the town it's about, so the
+# heading was the only link to it and the heading said "there". In the unit 2
+# diagnosis that section missed the top 5 for "How do I get to X?" in 6 of 9
+# towns. _resolve_heading turns "Getting there" into "Getting to Kestrelford",
+# the same rule as the title prefix: a chunk has to make sense on its own.
 
 SECTION_MAX_CHARS = 900
 MIN_PARAGRAPH_CHARS = 60   # don't split off a lone one-line paragraph
+
+
+def _resolve_heading(heading: str, title: str) -> str:
+    """'Getting there' -> 'Getting to <title>'. Other headings unchanged."""
+    import re
+
+    return re.sub(r"\bthere\b", f"to {title}", heading)
 
 
 def _title_of(text: str, fallback: str) -> str:
@@ -191,7 +206,7 @@ def split_documents(documents: list[Document]) -> list[Chunk]:
             for piece in _pieces(body):
                 chunks.append(
                     Chunk(
-                        text=f"{title} — {heading}\n\n{piece}",
+                        text=f"{title} — {_resolve_heading(heading, title)}\n\n{piece}",
                         source=doc.source,
                         index=index,
                         produced_by="chunker.py::split_documents",

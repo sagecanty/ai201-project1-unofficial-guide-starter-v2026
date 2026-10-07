@@ -476,34 +476,101 @@ picked by default ("names and exact terms"), and it was wrong for this corpus.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** one function in the chunking stage. `chunker.py::_resolve_heading`,
+called from `chunker.py::split_documents`, replaces the word "there" in a
+section heading with "to <guide title>". In this corpus that touches exactly
+the nine "Getting there" headings: `Kestrelford — Getting there` became
+`Kestrelford — Getting to Kestrelford`. Same 90 chunks, same bodies, same
+sizes; nothing else in the pipeline changed (top-k 5, cutoff 0.61, same prompt,
+same model). Re-indexed with `python app.py index`.
 
-**Why I picked it:**
-
-<!-- Connect it to a specific diagnosis above in one sentence. If you can't,
-     you picked a fix because it sounded impressive. -->
+**Why I picked it:** the diagnosis put the "how do I get to X?" failure at the
+chunking stage — the one section that answers it has a body about other towns
+and a heading that only says "there" — and this is the change that goes at
+that mechanism directly. It's the same rule my unit 1 chunker was built on
+(a chunk has to make sense pulled out on its own), applied to a reference I
+missed. Top-k 8 scored better on getting the chunk into context (8/9 vs 7/9)
+and I didn't pick it: it leaves the chunk at rank 7–8 and widens every
+question's prompt by three chunks of mostly same-town noise to fix one section
+type. Hybrid search I ruled out because it measured worse (0/9).
 
 ### Run Log — After
 
-<!-- Same format, same five criteria, three runs each.
-     `python run_eval.py --label after` -->
+`python run_eval.py --label after`, rolled up with
+`python criteria_check.py results/run_2026-10-06_1710_after.md`. Evidence:
+`results/run_2026-10-06_1710_after.md`.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Rank-1 chunk contains the answer | 3 of 5 | 4/5 | 4/5 | 4/5 | MET |
+| 5. Cited file is in the answer key | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
-**Did it help?**
+Side by side:
 
-<!-- Say plainly whether it did, and how you know. If it made things worse,
-     say that — a change that backfired, honestly reported, earns full credit
-     and is more interesting than one that worked. What matters is that you can
-     tell.
+| Criterion | Before (runs 1/2/3) | After (runs 1/2/3) |
+|---|---|---|
+| 1 | 5/5 · 5/5 · 5/5 | 5/5 · 5/5 · 5/5 |
+| 2 | 5/5 · 5/5 · 5/5 | 5/5 · 5/5 · 5/5 |
+| 3 | 5/5 | 5/5 |
+| 4 | 4/5 · 4/5 · 4/5 | 4/5 · 4/5 · 4/5 |
+| 5 | 5/5 · 5/5 · 5/5 | 5/5 · 5/5 · 5/5 |
 
-     Milestone 4. -->
+Best distances that moved: question 1 went 0.208 → 0.219 (still the
+Kestrelford getting-there chunk at rank 1), question 3 went 0.282 → 0.252
+(the Elder Ness getting-there chunk got closer), and the diesel-engine
+question went 0.881 → 0.884. Everything else is identical to three decimals.
+
+Because the five-question test can't see the failure this was aimed at, the
+same retrieval-only measurements from the diagnosis, re-run on the shipped
+system (`tools/probe_sections.py`, plus the held-out wordings):
+
+| Measure | Before | After |
+|---|---|---|
+| "How do I get to X?" — right chunk in top 5 | 3/9 | **7/9** |
+| "How do I get to X?" — right chunk at rank 1 | 2/9 | 2/9 |
+| Held-out wordings — right chunk in top 5 | 13/18 | **16/18** |
+| Held-out wordings — right chunk at rank 1 | 5/18 | **9/18** |
+| All 54 section probes — in top 5 | 47/54 | 51/54 |
+| All 54 section probes — at rank 1 | 32/54 | **31/54** |
+| "Getting around" probes — at rank 1 | 4/9 | **3/9** |
+
+Real output on a held-out question after the change (`app.py::cmd_ask`;
+the getting-there chunk was at rank 5, inside the context):
+
+```
+$ python app.py ask "What's the best way to reach Givens Mill?"
+  (best distance 0.385, cutoff 0.61)
+
+The documents do not specify what the "best" way to reach Givens Mill is; they only state that you can drive (taking 20 minutes) or take one of the four weekday buses from Brightwater, noting there is no station and no bus on Sundays.
+
+Source: guide_givens_mill.md
+```
+
+And on the question that started all this — still failing:
+
+```
+$ python app.py ask "how do I get to Kestrelford?"
+  (best distance 0.321, cutoff 0.61)
+
+Based on the provided documents, Kestrelford is located an hour inland from Brightwater. However, the documents do not provide specific instructions on how to travel there.
+
+Source: guide_kestrelford.md
+```
+
+**Did it help?** Partly, and I can say exactly where. On my five-question
+test it changed nothing — every criterion was met before and after, with the
+same counts — which tells me it broke nothing, and also that my test can't
+see this kind of failure at all. On the failure it was aimed at, it more than
+doubled how often the right chunk reaches the model (3/9 → 7/9 for "How do I
+get to X?", 13/18 → 16/18 on wording I never tuned on) and nearly doubled
+rank-1 hits on the held-out wording. It did **not** fix the motivating
+question: Kestrelford's getting-there chunk went from 0.404 to 0.406 and stayed
+at rank 7. And it cost a little elsewhere: one "Getting around" question lost
+its rank-1 spot to the new heading: "How do I get around Brightwater?" now ranks "Brightwater — Getting to Brightwater" first (0.309) over "Getting around" (0.330). "Getting to" shares
+more words with "get around" than "Getting there" did.
 
 ## What's Still Broken
 

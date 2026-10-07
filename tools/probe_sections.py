@@ -53,9 +53,10 @@ def main():
         for town in TOWNS:
             q = tmpl.format(t=town)
             res = search(q, top_k=deep, corpus=config.CORPUS, variant=args.variant)
-            want = f"{town} — {section}"
+            # Accept the unit 2 resolved heading too ("Getting to <town>").
+            wants = (f"{town} — {section}\n", f"{town} — {section.replace('there', 'to ' + town)}\n")
             rank = next(
-                (i + 1 for i, r in enumerate(res) if r.text.startswith(want)), None
+                (i + 1 for i, r in enumerate(res) if r.text.startswith(wants)), None
             )
             ranks.append(rank)
             by_section[section].append(rank)
